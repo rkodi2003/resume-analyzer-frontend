@@ -206,7 +206,9 @@ function getVerdictStyle(verdict) {
 }
 
 function App() {
+  const [resumeMode, setResumeMode] = React.useState("text"); // "text" | "pdf"
   const [resume, setResume] = React.useState("");
+  const [pdfFile, setPdfFile] = React.useState(null);
   const [jd, setJd] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
@@ -215,11 +217,22 @@ function App() {
   const analyze = async () => {
     setError(null); setResult(null); setLoading(true);
     try {
-      const res = await fetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume, job_description: jd }),
-      });
+      let res;
+      if (resumeMode === "pdf" && pdfFile) {
+        const formData = new FormData();
+        formData.append("resume_pdf", pdfFile);
+        formData.append("job_description", jd);
+        res = await fetch(`${API.replace("/analyze", "/analyze-pdf")}`, {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        res = await fetch(API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ resume, job_description: jd }),
+        });
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Something went wrong");
       setResult(data);
@@ -230,24 +243,70 @@ function App() {
     }
   };
 
+  const canSubmit = jd.trim() && (resumeMode === "text" ? resume.trim() : pdfFile);
+
   return (
     <div>
       <header>
         <div>
           <h1>AI Resume Analyzer</h1>
-          <p>Powered by Claude AI — paste your resume and job description to get instant analysis</p>
+          <p>Powered by Claude AI — upload or paste your resume and job description</p>
         </div>
       </header>
 
       <div className="main">
         <div className="input-grid">
           <div className="card">
-            <h3>Your Resume</h3>
-            <textarea
-              value={resume}
-              onChange={e => setResume(e.target.value)}
-              placeholder="Paste your resume text here..."
-            />
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px"}}>
+              <h3 style={{margin:0}}>Your Resume</h3>
+              <div style={{display:"flex", gap:"6px"}}>
+                <button
+                  onClick={() => { setResumeMode("text"); setPdfFile(null); }}
+                  style={{
+                    padding:"4px 12px", border:"1.5px solid", borderRadius:"20px", cursor:"pointer", fontSize:"12px", fontWeight:600,
+                    background: resumeMode==="text" ? "#4f46e5" : "white",
+                    color: resumeMode==="text" ? "white" : "#4f46e5",
+                    borderColor:"#4f46e5"
+                  }}>Paste Text</button>
+                <button
+                  onClick={() => { setResumeMode("pdf"); setResume(""); }}
+                  style={{
+                    padding:"4px 12px", border:"1.5px solid", borderRadius:"20px", cursor:"pointer", fontSize:"12px", fontWeight:600,
+                    background: resumeMode==="pdf" ? "#4f46e5" : "white",
+                    color: resumeMode==="pdf" ? "white" : "#4f46e5",
+                    borderColor:"#4f46e5"
+                  }}>Upload PDF</button>
+              </div>
+            </div>
+
+            {resumeMode === "text" ? (
+              <textarea
+                value={resume}
+                onChange={e => setResume(e.target.value)}
+                placeholder="Paste your resume text here..."
+              />
+            ) : (
+              <div style={{
+                border:"2px dashed #cbd5e0", borderRadius:"8px", height:"260px",
+                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                gap:"12px", cursor:"pointer", background:"#f7f8ff"
+              }}
+                onClick={() => document.getElementById("pdf-upload").click()}
+              >
+                <div style={{fontSize:"40px"}}>📄</div>
+                <div style={{fontSize:"14px", fontWeight:600, color:"#4f46e5"}}>
+                  {pdfFile ? pdfFile.name : "Click to upload PDF"}
+                </div>
+                <div style={{fontSize:"12px", color:"#718096"}}>Only PDF files supported</div>
+                <input
+                  id="pdf-upload"
+                  type="file"
+                  accept=".pdf"
+                  style={{display:"none"}}
+                  onChange={e => setPdfFile(e.target.files[0] || null)}
+                />
+              </div>
+            )}
           </div>
           <div className="card">
             <h3>Job Description</h3>
@@ -262,7 +321,7 @@ function App() {
         <button
           className="btn-analyze"
           onClick={analyze}
-          disabled={loading || !resume.trim() || !jd.trim()}
+          disabled={loading || !canSubmit}
         >
           {loading ? "Analyzing..." : "Analyze My Resume"}
         </button>
