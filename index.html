@@ -223,12 +223,12 @@ function App() {
         const formData = new FormData();
         formData.append("resume_pdf", pdfFile);
         formData.append("job_description", jd);
-        res = await fetch(`${API.replace("/analyze", "/analyze-pdf")}`, {
+        res = await fetch(API_PDF, {
           method: "POST",
           body: formData,
         });
       } else {
-        res = await fetch(API, {
+        res = await fetch(API_TEXT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ resume, job_description: jd }),
